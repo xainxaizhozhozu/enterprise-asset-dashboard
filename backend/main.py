@@ -1,16 +1,39 @@
 import sys
 from pathlib import Path
-
 sys.path.insert(0, str(Path(__file__).parent))
+
+import os
+import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-import os
 
 load_dotenv()
+logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Enterprise Asset & Permission Dashboard", version="1.0.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    from database import init_db, async_session
+    from seed_data import seed_all
+
+    await init_db()
+    async with async_session() as session:
+        await seed_all(session)
+    logger.info("database seeded, app ready")
+
+    yield
+
+    logger.info("shutting down...")
+
+
+app = FastAPI(
+    title="Enterprise Asset & Permission Dashboard",
+    version="1.0.0",
+    lifespan=lifespan,
+)
 
 origins = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
 app.add_middleware(
@@ -20,17 +43,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.on_event("startup")
-async def startup():
-    from database import init_db, async_session
-    from seed_data import seed_all
-
-    await init_db()
-
-    async with async_session() as session:
-        await seed_all(session)
 
 
 @app.get("/")
