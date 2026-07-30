@@ -173,11 +173,16 @@ TOOL_DISPATCH = {
 # ─── LLM 模式（Function Calling）───
 
 async def _llm_analyze(query: str, session: AsyncSession) -> dict:
-    from openai import AsyncOpenAI
+    from openai import AsyncOpenAI, APITimeoutError, RateLimitError, APIConnectionError
+
+    api_key = os.getenv("OPENAI_API_KEY", "")
+    if not api_key or api_key == "your-api-key-here":
+        return {"query": query, "answer": "AI 服务未配置，请联系管理员设置 OPENAI_API_KEY。", "chart_config": None, "source": "error"}
 
     client = AsyncOpenAI(
-        api_key=os.getenv("OPENAI_API_KEY", ""),
+        api_key=api_key,
         base_url=os.getenv("OPENAI_BASE_URL", "https://token.sensenova.cn/v1"),
+        timeout=30.0,
     )
     model = os.getenv("MODEL_NAME", "deepseek-v4-flash")
 
@@ -193,14 +198,24 @@ async def _llm_analyze(query: str, session: AsyncSession) -> dict:
     ]
 
     # 第一轮：带 tools 让模型决定调哪个函数
-    response = await client.chat.completions.create(
-        model=model,
-        messages=messages,
-        tools=TOOLS,
-        tool_choice="auto",
-        temperature=0.3,
-        max_tokens=4096,
-    )
+    try:
+        response = await client.chat.completions.create(
+            model=model,
+            messages=messages,
+            tools=TOOLS,
+            tool_choice="auto",
+            temperature=0.3,
+            max_tokens=4096,
+        )
+    except APITimeoutError:
+        logger.warning("LLM API timeout for query: %s", query[:100])
+        return {"query": query, "answer": "AI 响应超时，请稍后重试。", "chart_config": None, "source": "error"}
+    except RateLimitError:
+        logger.warning("LLM rate limit hit")
+        return {"query": query, "answer": "AI 服务请求过于频繁，请稍后再试。", "chart_config": None, "source": "error"}
+    except APIConnectionError:
+        logger.error("LLM API connection failed")
+        return {"query": query, "answer": "无法连接 AI 服务，请检查网络配置。", "chart_config": None, "source": "error"}
 
     msg = response.choices[0].message
 
@@ -218,13 +233,20 @@ async def _llm_analyze(query: str, session: AsyncSession) -> dict:
 
     for tool_call in msg.tool_calls:
         func_name = tool_call.function.name
-        func_args = json.loads(tool_call.function.arguments) if tool_call.function.arguments else {}
+        try:
+            func_args = json.loads(tool_call.function.arguments) if tool_call.function.arguments else {}
+        except json.JSONDecodeError:
+            func_args = {}
 
         logger.info(f"[Audit] tool_call: {func_name}({func_args})")
 
         handler = TOOL_DISPATCH.get(func_name)
         if handler:
-            result_data = await handler(func_args, session)
+            try:
+                result_data = await handler(func_args, session)
+            except Exception as e:
+                logger.error("Tool %s failed: %s", func_name, e)
+                result_data = {"error": f"查询执行失败"}
         else:
             result_data = {"error": f"未知工具: {func_name}"}
 
@@ -235,12 +257,17 @@ async def _llm_analyze(query: str, session: AsyncSession) -> dict:
         })
 
     # 第二轮：把工具结果给模型，生成最终回答
-    response2 = await client.chat.completions.create(
-        model=model,
-        messages=messages,
-        temperature=0.3,
-        max_tokens=4096,
-    )
+    try:
+        response2 = await client.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=0.3,
+            max_tokens=4096,
+        )
+    except (APITimeoutError, RateLimitError, APIConnectionError) as e:
+        logger.warning("LLM second call failed: %s", type(e).__name__)
+        # 有工具结果，可以返回一个简化的回答
+        return {"query": query, "answer": "数据已查询，但 AI 总结生成失败，请稍后重试。", "chart_config": None, "source": "error"}
 
     content = response2.choices[0].message.content or ""
     if not content:

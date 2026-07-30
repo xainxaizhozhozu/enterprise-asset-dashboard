@@ -69,6 +69,8 @@ async def get_current_user(
     user = result.scalars().first()
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="账户已被禁用，请联系管理员")
     return user
 
 
