@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from 'react'
-import { assetAPI, auditAPI } from '../api'
+import { assetAPI, auditAPI, auditLogAPI } from '../api'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 
 const ROLE_LABELS = { admin: '管理员', manager: '部门经理', viewer: '查看者' }
 const CATEGORY_LABELS = { server: '服务器', desktop: '台式机', laptop: '笔记本', monitor: '显示器', network: '网络设备', software: '软件许可', peripheral: '外设' }
-const STATUS_MAP = { active: { label: '在用', cls: 'bg-green-100 text-green-700' }, maintenance: { label: '维护中', cls: 'bg-amber-100 text-amber-700' }, retired: { label: '已报废', cls: 'bg-red-100 text-red-600' } }
+const STATUS_MAP = { active: { label: '在用', cls: 'bg-green-100 text-green-700' }, inactive: { label: '停用', cls: 'bg-gray-100 text-gray-600' }, maintenance: { label: '维护中', cls: 'bg-amber-100 text-amber-700' }, disposed: { label: '已报废', cls: 'bg-red-100 text-red-600' } }
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899']
 
 export default function Dashboard({ user, onLogout }) {
@@ -19,6 +19,12 @@ export default function Dashboard({ user, onLogout }) {
   const [chatLoading, setChatLoading] = useState(false)
   const [chartData, setChartData] = useState(null)
   const [chartTitle, setChartTitle] = useState('')
+  const [auditLogs, setAuditLogs] = useState([])
+  const [logsLoading, setLogsLoading] = useState(false)
+
+  const canEdit = user.role === 'admin' || user.role === 'manager'
+  const canDelete = user.role === 'admin'
+  const canViewLogs = user.role === 'admin'
 
   useEffect(() => { loadAssets() }, [])
 
@@ -30,6 +36,28 @@ export default function Dashboard({ user, onLogout }) {
       console.error('加载资产失败', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadAuditLogs = async () => {
+    setLogsLoading(true)
+    try {
+      const res = await auditLogAPI.list()
+      setAuditLogs(res.data)
+    } catch (err) {
+      console.error('加载审计日志失败', err)
+    } finally {
+      setLogsLoading(false)
+    }
+  }
+
+  const handleDelete = async (id, name) => {
+    if (!window.confirm(`确认删除资产 "${name}"？`)) return
+    try {
+      await assetAPI.delete(id)
+      loadAssets()
+    } catch (err) {
+      alert(err.response?.data?.detail || '删除失败')
     }
   }
 
@@ -93,6 +121,9 @@ export default function Dashboard({ user, onLogout }) {
     { key: 'assets', label: '资产管理', icon: '💻' },
     { key: 'audit', label: 'AI 审计助手', icon: '🤖' },
   ]
+  if (canViewLogs) {
+    navItems.push({ key: 'logs', label: '审计日志', icon: '📋' })
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -112,7 +143,7 @@ export default function Dashboard({ user, onLogout }) {
         </div>
         <nav className="flex-1 p-3 space-y-1">
           {navItems.map(item => (
-            <button key={item.key} onClick={() => setTab(item.key)}
+            <button key={item.key} onClick={() => { setTab(item.key); if (item.key === 'logs') loadAuditLogs() }}
               className={`w-full text-left px-4 py-2.5 rounded-lg text-sm transition flex items-center gap-3 ${tab === item.key ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
               <span>{item.icon}</span>
               <span>{item.label}</span>
@@ -136,7 +167,6 @@ export default function Dashboard({ user, onLogout }) {
               <span className="text-sm text-slate-400">{new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}</span>
             </div>
 
-            {/* 核心指标卡片 */}
             <div className="grid grid-cols-4 gap-5">
               <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
                 <p className="text-sm text-slate-500">资产总数</p>
@@ -160,7 +190,6 @@ export default function Dashboard({ user, onLogout }) {
               </div>
             </div>
 
-            {/* 图表区 */}
             <div className="grid grid-cols-2 gap-6">
               <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
                 <h3 className="text-sm font-semibold text-slate-700 mb-4">各部门资产价值分布</h3>
@@ -187,7 +216,6 @@ export default function Dashboard({ user, onLogout }) {
               </div>
             </div>
 
-            {/* 快捷入口 */}
             <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
               <h3 className="text-sm font-semibold text-slate-700 mb-3">快捷操作</h3>
               <div className="flex gap-3">
@@ -207,7 +235,6 @@ export default function Dashboard({ user, onLogout }) {
               <span className="text-sm text-slate-400">共 {filteredAssets.length} 项</span>
             </div>
 
-            {/* 搜索和筛选 */}
             <div className="flex gap-3">
               <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索名称或序列号..."
                 className="flex-1 max-w-xs px-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" />
@@ -220,8 +247,9 @@ export default function Dashboard({ user, onLogout }) {
                 className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-slate-600 outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="">全部状态</option>
                 <option value="active">在用</option>
+                <option value="inactive">停用</option>
                 <option value="maintenance">维护中</option>
-                <option value="retired">已报废</option>
+                <option value="disposed">已报废</option>
               </select>
             </div>
 
@@ -238,6 +266,7 @@ export default function Dashboard({ user, onLogout }) {
                       <th className="px-5 py-3.5 text-left font-medium">状态</th>
                       <th className="px-5 py-3.5 text-right font-medium">价值</th>
                       <th className="px-5 py-3.5 text-left font-medium">序列号</th>
+                      {canDelete && <th className="px-5 py-3.5 text-center font-medium">操作</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
@@ -255,6 +284,14 @@ export default function Dashboard({ user, onLogout }) {
                           </td>
                           <td className="px-5 py-3.5 text-right text-slate-700 font-medium">¥{asset.value?.toLocaleString()}</td>
                           <td className="px-5 py-3.5 text-slate-400 text-xs font-mono">{asset.serial_number}</td>
+                          {canDelete && (
+                            <td className="px-5 py-3.5 text-center">
+                              <button onClick={() => handleDelete(asset.id, asset.name)}
+                                className="text-red-500 hover:text-red-700 text-xs font-medium transition">
+                                删除
+                              </button>
+                            </td>
+                          )}
                         </tr>
                       )
                     })}
@@ -271,7 +308,7 @@ export default function Dashboard({ user, onLogout }) {
           <div className="max-w-3xl space-y-5">
             <div className="flex items-center gap-3">
               <h2 className="text-xl font-bold text-slate-800">AI 审计助手</h2>
-              <span className="px-2.5 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">SenseNova 驱动</span>
+              <span className="px-2.5 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">Function Calling</span>
             </div>
 
             {chartData && (
@@ -292,7 +329,7 @@ export default function Dashboard({ user, onLogout }) {
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 space-y-4 min-h-[320px] max-h-[420px] overflow-auto">
               {chatMessages.length === 0 && (
                 <div className="text-center py-10">
-                  <p className="text-slate-400 text-sm mb-4">你好，我是 AI 审计助手，可以帮你分析企业资产状况。</p>
+                  <p className="text-slate-400 text-sm mb-4">你好，我是 AI 审计助手，通过按需查询资产数据来回答你的问题。</p>
                   <div className="flex flex-wrap justify-center gap-2">
                     {['各部门资产分布', '有哪些需要关注的异常', '资产总览', '哪些许可证快到期了'].map(q => (
                       <button key={q} onClick={() => handleChat(q)} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs hover:bg-blue-50 hover:text-blue-600 transition">{q}</button>
@@ -310,7 +347,7 @@ export default function Dashboard({ user, onLogout }) {
               {chatLoading && (
                 <div className="flex justify-start">
                   <div className="bg-slate-100 px-4 py-3 rounded-2xl rounded-bl-md text-sm text-slate-400">
-                    <span className="animate-pulse">正在分析中...</span>
+                    <span className="animate-pulse">正在查询资产数据...</span>
                   </div>
                 </div>
               )}
@@ -323,6 +360,54 @@ export default function Dashboard({ user, onLogout }) {
                 发送
               </button>
             </form>
+          </div>
+        )}
+
+        {/* ═══ 审计日志页（仅管理员）═══ */}
+        {tab === 'logs' && canViewLogs && (
+          <div className="space-y-5">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-slate-800">操作审计日志</h2>
+              <button onClick={loadAuditLogs} className="px-4 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm hover:bg-blue-100 transition">
+                刷新
+              </button>
+            </div>
+
+            {logsLoading ? (
+              <div className="text-center py-16 text-slate-400">加载中...</div>
+            ) : (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50/80 text-slate-500 text-xs uppercase">
+                    <tr>
+                      <th className="px-5 py-3.5 text-left font-medium">时间</th>
+                      <th className="px-5 py-3.5 text-left font-medium">操作</th>
+                      <th className="px-5 py-3.5 text-left font-medium">操作人ID</th>
+                      <th className="px-5 py-3.5 text-left font-medium">详情</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {auditLogs.map((log) => (
+                      <tr key={log.id} className="hover:bg-blue-50/30 transition">
+                        <td className="px-5 py-3.5 text-slate-500 text-xs font-mono whitespace-nowrap">{log.created_at?.slice(0, 19)}</td>
+                        <td className="px-5 py-3.5">
+                          <span className={`px-2.5 py-1 rounded-md text-xs font-medium ${
+                            log.action === 'create' ? 'bg-green-100 text-green-700' :
+                            log.action === 'update' ? 'bg-blue-100 text-blue-700' :
+                            'bg-red-100 text-red-700'
+                          }`}>
+                            {log.action === 'create' ? '新增' : log.action === 'update' ? '修改' : '删除'}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3.5 text-slate-600">#{log.user_id}</td>
+                        <td className="px-5 py-3.5 text-slate-700 text-xs">{log.details}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {auditLogs.length === 0 && <div className="text-center py-12 text-slate-400 text-sm">暂无审计日志</div>}
+              </div>
+            )}
           </div>
         )}
       </main>

@@ -51,6 +51,39 @@ def validate_email(email: str) -> None:
         raise ValueError("邮箱格式不正确")
 
 
+async def get_current_user(
+    token: str = Depends(security),
+    session: AsyncSession = Depends(get_session),
+) -> User:
+    """从 JWT 中提取并验证当前用户"""
+    try:
+        payload = decode_access_token(token.credentials)
+    except Exception:
+        raise HTTPException(status_code=401, detail="无效的认证令牌")
+
+    uid = payload.get("sub")
+    if not uid:
+        raise HTTPException(status_code=401, detail="无效的认证令牌")
+
+    result = await session.execute(select(User).where(User.id == int(uid)))
+    user = result.scalars().first()
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    return user
+
+
+def require_role(*roles):
+    """依赖注入工厂：校验用户角色"""
+    async def checker(current_user: User = Depends(get_current_user)):
+        if current_user.role not in roles:
+            raise HTTPException(
+                status_code=403,
+                detail=f"权限不足，需要角色: {', '.join(roles)}",
+            )
+        return current_user
+    return checker
+
+
 @router.post("/register", response_model=TokenResponse)
 async def register(req: RegisterRequest, session: AsyncSession = Depends(get_session)):
     try:
@@ -103,19 +136,10 @@ async def login(req: LoginRequest, session: AsyncSession = Depends(get_session))
 
 
 @router.get("/me")
-async def get_current_user(token: str = Depends(security), session: AsyncSession = Depends(get_session)):
-    try:
-        payload = decode_access_token(token.credentials)
-    except Exception:
-        raise HTTPException(status_code=401, detail="无效的认证令牌")
-
-    uid = payload.get("sub")
-    if not uid:
-        raise HTTPException(status_code=401, detail="无效的认证令牌")
-
-    result = await session.execute(select(User).where(User.id == int(uid)))
-    user = result.scalars().first()
-    if not user:
-        raise HTTPException(status_code=404, detail="用户不存在")
-
-    return {"id": user.id, "username": user.username, "role": user.role, "email": user.email}
+async def get_me(current_user: User = Depends(get_current_user)):
+    return {
+        "id": current_user.id,
+        "username": current_user.username,
+        "role": current_user.role,
+        "email": current_user.email,
+    }

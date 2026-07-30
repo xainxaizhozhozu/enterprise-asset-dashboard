@@ -31,4 +31,8 @@ export const auditAPI = {
   chat: (query) => api.post('/audit/chat', { query }),
 }
 
+export const auditLogAPI = {
+  list: (params) => api.get('/audit/logs', { params }),
+}
+
 export default api
