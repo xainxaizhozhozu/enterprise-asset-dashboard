@@ -43,6 +43,7 @@ class Asset(Base):
     serial_number = Column(String(100), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    is_deleted = Column(Integer, default=0)
 
     owner = relationship("User", back_populates="assets")
 

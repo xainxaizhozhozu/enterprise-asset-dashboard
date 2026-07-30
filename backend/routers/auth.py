@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 import re
 import bcrypt
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_session
 from models import User
 from services.auth_helper import create_access_token, decode_access_token
+from main import limiter
 
 router = APIRouter()
 security = HTTPBearer()
@@ -41,8 +42,12 @@ def hash_password(plain: str) -> str:
 
 
 def validate_password(password: str) -> None:
-    if len(password) < 6:
-        raise ValueError("密码至少 6 位")
+    if len(password) < 8:
+        raise ValueError("密码至少 8 位")
+    if not any(c.isalpha() for c in password):
+        raise ValueError("密码必须包含至少一个字母")
+    if not any(c.isdigit() for c in password):
+        raise ValueError("密码必须包含至少一个数字")
 
 
 def validate_email(email: str) -> None:
@@ -118,7 +123,8 @@ async def register(req: RegisterRequest, session: AsyncSession = Depends(get_ses
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(req: LoginRequest, session: AsyncSession = Depends(get_session)):
+@limiter.limit("5/minute")
+async def login(req: LoginRequest, request: Request, session: AsyncSession = Depends(get_session)):
     result = await session.execute(select(User).where(User.username == req.username))
     user = result.scalars().first()
 

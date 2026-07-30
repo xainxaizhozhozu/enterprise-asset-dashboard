@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
+import ErrorBoundary from './ErrorBoundary'
 
 function App() {
   const [user, setUser] = useState(null)
@@ -11,7 +12,20 @@ function App() {
     const token = localStorage.getItem('token')
     const savedUser = localStorage.getItem('user')
     if (token && savedUser) {
-      setUser(JSON.parse(savedUser))
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]))
+        if (payload.exp && payload.exp * 1000 < Date.now()) {
+          localStorage.removeItem('token')
+          localStorage.removeItem('user')
+          setUser(null)
+        } else {
+          setUser(JSON.parse(savedUser))
+        }
+      } catch {
+        localStorage.removeItem('token')
+        localStorage.removeItem('user')
+        setUser(null)
+      }
     }
     setLoading(false)
   }, [])
@@ -33,7 +47,7 @@ function App() {
   return (
     <Routes>
       <Route path="/login" element={!user ? <Login onLogin={handleLogin} /> : <Navigate to="/" />} />
-      <Route path="/*" element={user ? <Dashboard user={user} onLogout={handleLogout} /> : <Navigate to="/login" />} />
+      <Route path="/*" element={user ? <ErrorBoundary><Dashboard user={user} onLogout={handleLogout} /></ErrorBoundary> : <Navigate to="/login" />} />
     </Routes>
   )
 }

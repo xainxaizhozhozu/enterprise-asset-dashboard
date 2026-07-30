@@ -77,7 +77,7 @@ async def list_assets(
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    query = select(Asset)
+    query = select(Asset).where(Asset.is_deleted == 0)
     if category:
         query = query.where(Asset.category == category)
     if asset_status:
@@ -129,7 +129,7 @@ async def get_asset(
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    result = await session.execute(select(Asset).where(Asset.id == asset_id))
+    result = await session.execute(select(Asset).where(Asset.id == asset_id).where(Asset.is_deleted == 0))
     asset = result.scalars().first()
     if not asset:
         raise HTTPException(status_code=404, detail="资产不存在")
@@ -144,7 +144,7 @@ async def update_asset(
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(require_role("admin", "manager")),
 ):
-    result = await session.execute(select(Asset).where(Asset.id == asset_id))
+    result = await session.execute(select(Asset).where(Asset.id == asset_id).where(Asset.is_deleted == 0))
     asset = result.scalars().first()
     if not asset:
         raise HTTPException(status_code=404, detail="资产不存在")
@@ -171,7 +171,7 @@ async def delete_asset(
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(require_role("admin")),
 ):
-    result = await session.execute(select(Asset).where(Asset.id == asset_id))
+    result = await session.execute(select(Asset).where(Asset.id == asset_id).where(Asset.is_deleted == 0))
     asset = result.scalars().first()
     if not asset:
         raise HTTPException(status_code=404, detail="资产不存在")
@@ -181,5 +181,6 @@ async def delete_asset(
         f"删除资产: {asset.name} (序列号={asset.serial_number})",
     )
 
-    await session.delete(asset)
+    asset.is_deleted = 1
+    asset.updated_at = datetime.now(timezone.utc)
     await session.commit()
