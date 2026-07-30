@@ -1,19 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 
 from database import get_session
 from models import AuditLog, User
+from schemas import AuditRequest
 from routers.auth import get_current_user, require_role
 from services.audit_assistant import run_audit
 
 router = APIRouter()
-
-
-class AuditRequest(BaseModel):
-    query: str
 
 
 @router.post("/chat")

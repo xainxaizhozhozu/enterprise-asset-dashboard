@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from pydantic import BaseModel
 from sqlalchemy import select, desc, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
@@ -7,29 +6,10 @@ from datetime import datetime, timezone
 
 from database import get_session
 from models import Asset, AuditLog, User
+from schemas import AssetCreateRequest, AssetUpdateRequest
 from routers.auth import get_current_user, require_role
 
 router = APIRouter()
-
-
-class AssetCreateRequest(BaseModel):
-    name: str
-    category: str = "desktop"
-    department: str
-    owner_id: Optional[int] = None
-    purchase_date: Optional[str] = None
-    status: str = "active"
-    value: Optional[float] = None
-    serial_number: Optional[str] = None
-
-
-class AssetUpdateRequest(BaseModel):
-    name: Optional[str] = None
-    category: Optional[str] = None
-    department: Optional[str] = None
-    status: Optional[str] = None
-    value: Optional[float] = None
-    serial_number: Optional[str] = None
 
 
 def asset_to_dict(asset):

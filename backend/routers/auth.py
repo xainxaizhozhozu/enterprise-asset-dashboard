@@ -3,34 +3,17 @@ import re
 import bcrypt
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer
-from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_session
 from models import User
+from schemas import RegisterRequest, LoginRequest, TokenResponse
 from services.auth_helper import create_access_token, decode_access_token
 from main import limiter
 
 router = APIRouter()
 security = HTTPBearer()
-
-
-class RegisterRequest(BaseModel):
-    username: str
-    email: str
-    password: str
-
-
-class LoginRequest(BaseModel):
-    username: str
-    password: str
-
-
-class TokenResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-    user: dict
 
 
 def verify_password(plain: str, hashed: str) -> bool:
