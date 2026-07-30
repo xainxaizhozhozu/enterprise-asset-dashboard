@@ -1,3 +1,25 @@
+# Enterprise Asset Management Platform (AI-Powered Audit)
+
+[中文文档](#企业资产与权限管理平台ai-智能审计)
+
+A full-lifecycle IT asset management system for mid-size enterprises, featuring three-tier RBAC access control and an AI-powered audit assistant that analyzes asset status and generates insights via natural language queries.
+
+**Key Features:** RBAC (admin/manager/viewer) | JWT + bcrypt auth | AI audit with OpenAI Function Calling | Audit logging | Docker support
+
+**Tech Stack:** Python / FastAPI / SQLAlchemy (async) / SQLite / React / Vite / TailwindCSS / Recharts
+
+**Quick Start:**
+```bash
+docker compose up
+# or manually:
+cd backend && pip install -r requirements.txt && uvicorn main:app --reload
+cd frontend && npm install && npm run dev
+```
+
+**Test Accounts:** admin / admin123 (Admin) | manager_zhang / manager123 (Manager) | viewer_li / viewer123 (Viewer)
+
+---
+
 # 企业资产与权限管理平台（AI 智能审计）
 
 面向中型企业的 IT 资产全生命周期管理系统，集成三级 RBAC 权限控制与 AI 智能审计助手，帮助管理员高效掌控资产分布、权限合规与风险预警。
