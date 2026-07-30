@@ -6,8 +6,9 @@ import os
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -45,6 +46,24 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def catch_exceptions(request: Request, call_next):
+    try:
+        return await call_next(request)
+    except Exception as e:
+        logger.error(
+            "Unhandled exception on %s %s: %s",
+            request.method,
+            request.url.path,
+            e,
+            exc_info=True,
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "服务器内部错误"},
+        )
+
+
 @app.get("/")
 async def root():
     return {"message": "Enterprise Asset & Permission Dashboard API", "version": "1.0.0"}
@@ -52,7 +71,7 @@ async def root():
 
 @app.get("/api/v1/health")
 async def health():
-    return {"status": "ok"}
+    return {"status": "ok", "version": "1.0.0"}
 
 
 def _register_routers():
