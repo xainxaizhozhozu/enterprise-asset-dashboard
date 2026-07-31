@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { assetAPI } from '../api'
+import useApi from '../hooks/useApi'
 import Sidebar from '../components/Sidebar'
 import OverviewTab from '../components/OverviewTab'
 import AssetsTab from '../components/AssetsTab'
@@ -8,25 +9,12 @@ import AuditLogsTab from '../components/AuditLogsTab'
 
 export default function Dashboard({ user, onLogout }) {
   const [tab, setTab] = useState('overview')
-  const [assets, setAssets] = useState([])
-  const [loading, setLoading] = useState(true)
-  const auditRef = useRef(null)
+  const { data: assets, loading, execute: loadAssets } = useApi(assetAPI.list)
 
   const canDelete = user.role === 'admin'
   const canViewLogs = user.role === 'admin'
 
   useEffect(() => { loadAssets() }, [])
-
-  const loadAssets = async () => {
-    try {
-      const res = await assetAPI.list()
-      setAssets(res.data)
-    } catch (err) {
-      console.error('加载资产失败', err)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const handleDelete = async (id, name) => {
     if (!window.confirm(`确认删除资产 "${name}"？`)) return
@@ -39,10 +27,11 @@ export default function Dashboard({ user, onLogout }) {
   }
 
   const stats = useMemo(() => {
-    const totalValue = assets.reduce((s, a) => s + (a.value || 0), 0)
-    const activeCount = assets.filter(a => a.status === 'active').length
-    const maintenanceCount = assets.filter(a => a.status === 'maintenance').length
-    const departments = [...new Set(assets.map(a => a.department))]
+    const list = assets || []
+    const totalValue = list.reduce((s, a) => s + (a.value || 0), 0)
+    const activeCount = list.filter(a => a.status === 'active').length
+    const maintenanceCount = list.filter(a => a.status === 'maintenance').length
+    const departments = [...new Set(list.map(a => a.department))]
     return { totalValue, activeCount, maintenanceCount, deptCount: departments.length }
   }, [assets])
 
@@ -59,7 +48,6 @@ export default function Dashboard({ user, onLogout }) {
     } else if (action.startsWith('audit:')) {
       const query = action.slice(6)
       setTab('audit')
-      // 延迟调用审计组件的 handleChat
       setTimeout(() => AuditTab._handleChat?.(query), 100)
     }
   }
@@ -70,12 +58,12 @@ export default function Dashboard({ user, onLogout }) {
 
       <main className="flex-1 ml-60 p-8">
         {tab === 'overview' && (
-          <OverviewTab assets={assets} stats={stats} onQuickAction={handleQuickAction} />
+          <OverviewTab assets={assets || []} stats={stats} onQuickAction={handleQuickAction} />
         )}
         {tab === 'assets' && (
-          <AssetsTab assets={assets} loading={loading} canDelete={canDelete} onDelete={handleDelete} />
+          <AssetsTab assets={assets || []} loading={loading} canDelete={canDelete} onDelete={handleDelete} />
         )}
-        {tab === 'audit' && <AuditTab ref={auditRef} />}
+        {tab === 'audit' && <AuditTab />}
         {tab === 'logs' && canViewLogs && <AuditLogsTab />}
       </main>
     </div>

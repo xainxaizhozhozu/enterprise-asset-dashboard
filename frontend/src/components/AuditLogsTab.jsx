@@ -1,21 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import { auditLogAPI } from '../api'
+import useApi from '../hooks/useApi'
 
 export default function AuditLogsTab() {
-  const [auditLogs, setAuditLogs] = useState([])
-  const [logsLoading, setLogsLoading] = useState(false)
-
-  const loadLogs = async () => {
-    setLogsLoading(true)
-    try {
-      const res = await auditLogAPI.list()
-      setAuditLogs(res.data)
-    } catch (err) {
-      console.error('加载审计日志失败', err)
-    } finally {
-      setLogsLoading(false)
-    }
-  }
+  const { data: auditLogs, loading: logsLoading, execute: loadLogs } = useApi(auditLogAPI.list)
 
   useEffect(() => { loadLogs() }, [])
 
@@ -40,7 +28,7 @@ export default function AuditLogsTab() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {auditLogs.map((log) => (
+              {(auditLogs || []).map((log) => (
                 <tr key={log.id} className="hover:bg-blue-50/30 transition">
                   <td className="px-5 py-3.5 text-slate-500 text-xs font-mono whitespace-nowrap">{log.created_at?.slice(0, 19)}</td>
                   <td className="px-5 py-3.5">
@@ -58,7 +46,7 @@ export default function AuditLogsTab() {
               ))}
             </tbody>
           </table>
-          {auditLogs.length === 0 && <div className="text-center py-12 text-slate-400 text-sm">暂无审计日志</div>}
+          {(!auditLogs || auditLogs.length === 0) && <div className="text-center py-12 text-slate-400 text-sm">暂无审计日志</div>}
         </div>
       )}
     </div>
