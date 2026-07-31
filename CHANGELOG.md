@@ -3,41 +3,45 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
-and this project adheres to [Semantic Versioning](https://semver.org/).
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [v1.5.0] - 2026-08-01
+
+### Added
+- **AuthContext**: Extracted auth state management into `contexts/AuthContext.jsx` (JWT validation, login/logout, localStorage sync)
+- **useApi hook**: Generic async API wrapper with loading/error/data state (`hooks/useApi.js`)
+- **Component splitting**: Dashboard.jsx split into 5 components (417→76 lines): Sidebar, OverviewTab, AssetsTab, AuditTab, AuditLogsTab
+- **Shared constants**: `components/constants.js` for role labels, category labels, status maps, chart colors
+
+### Changed
+- **useApi integration**: Dashboard and AuditLogsTab now use `useApi` hook instead of manual loading/error state management
+- **App.jsx simplified**: Auth logic delegated to `AuthProvider`, route logic to `AppRoutes` component using `useAuth()`
+
+### Previous releases
 
 ## [v1.3.0] - 2026-07-30
 
 ### Bug Fixes
-- **WAL mode**: Enabled SQLite WAL (Write-Ahead Logging) mode to resolve concurrent write conflicts and improve database reliability under load
-- **Function Calling error handling**: Added robust error handling for OpenAI Function Calling responses, preventing crashes on malformed or unexpected tool call results
-- **is_active enforcement**: Fixed inactive user accounts still being able to authenticate; the `is_active` flag is now strictly enforced at the login endpoint
+- **WAL mode**: Enabled SQLite WAL mode for concurrent write reliability
+- **Function Calling**: Robust error handling for OpenAI Function Calling responses
+- **is_active enforcement**: Inactive accounts blocked from authentication
 
 ## [v1.2.0] - 2026-07-30
 
 ### Security
-- **JWT secret hardening**: Replaced hardcoded JWT secret with environment-variable-based configuration; enforced minimum secret length and added startup validation
-- **API key cleanup**: Removed accidentally committed API keys and secrets from source history; added `.env` to `.gitignore` and scrubbed sensitive data from logs
+- **JWT secret hardening**: Environment-variable-based configuration with startup validation
+- **API key cleanup**: Removed committed secrets from source history
 
 ## [v1.1.0] - 2026-07-30
 
 ### Added
-- **RBAC (Role-Based Access Control)**: Implemented three-tier role system (admin / manager / viewer) with granular endpoint-level permission checks
-- **Audit logging**: Added comprehensive audit trail for all asset mutations (create, update, delete, status change) with user and timestamp attribution
-- **OpenAI Function Calling**: Integrated AI-powered natural language asset queries via OpenAI Function Calling, allowing users to ask questions like "show all overdue assets"
-- **MIT License**: Project released under the MIT License
+- RBAC (admin / manager / viewer), audit logging, OpenAI Function Calling, MIT License
 
 ## [v1.0.0] - 2026-07-30
 
 ### Initial Release
 - Enterprise asset and permission management dashboard
 - FastAPI backend with async SQLAlchemy ORM
-- Vue 3 + Vite frontend with responsive UI
+- React + Vite frontend with responsive UI
 - AI-assisted audit capabilities via OpenAI integration
-- SQLite persistence with seed data
-- JWT-based authentication
-- Docker and CI/CD infrastructure
-
-[v1.3.0]: https://github.com/your-org/dashboard/compare/v1.2.0...v1.3.0
-[v1.2.0]: https://github.com/your-org/dashboard/compare/v1.1.0...v1.2.0
-[v1.1.0]: https://github.com/your-org/dashboard/compare/v1.0.0...v1.1.0
-[v1.0.0]: https://github.com/your-org/dashboard/releases/tag/v1.0.0
+- JWT-based authentication, Docker and CI/CD infrastructure
